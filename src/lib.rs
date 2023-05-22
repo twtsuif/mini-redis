@@ -1,16 +1,3 @@
-//! A minimal (i.e. very incomplete) implementation of a Redis server and
-//! client.
-//!
-//! The purpose of this project is to provide a larger example of an
-//! asynchronous Rust project built with Tokio. Do not attempt to run this in
-//! production... seriously.
-//!
-//! # Layout
-//!
-//! The library is structured such that it can be used with guides. There are
-//! modules that are public that probably would not be public in a "real" redis
-//! client library.
-//!
 //! The major components are:
 //!
 //! * `server`: Redis server implementation. Includes a single `run` function
@@ -49,25 +36,16 @@ pub mod server;
 mod shutdown;
 use shutdown::Shutdown;
 
-/// Default port that a redis server listens on.
-///
-/// Used if no port is specified.
+/// 默认端口号
 pub const DEFAULT_PORT: u16 = 6379;
 
-/// Error returned by most functions.
+/// 大多数函数返回的错误类型
 ///
-/// When writing a real application, one might want to consider a specialized
-/// error handling crate or defining an error type as an `enum` of causes.
-/// However, for our example, using a boxed `std::error::Error` is sufficient.
-///
-/// For performance reasons, boxing is avoided in any hot path. For example, in
-/// `parse`, a custom error `enum` is defined. This is because the error is hit
-/// and handled during normal execution when a partial frame is received on a
-/// socket. `std::error::Error` is implemented for `parse::Error` which allows
-/// it to be converted to `Box<dyn std::error::Error>`.
+/// 应用程序可能需要考虑专门的错误处理或者将错误类型定义为错误原因的枚举
+/// 我们的例子使用一个Box封装的std::error::Error即可
+/// 出于性能，要避免在任何hot path中boxing，例如在parse中定义了一个自定义的错误enum，这是因为socket接受部分帧时，错误在正常执行期间被击中和处理。
+///  `std::error::Error` is implemented for `parse::Error` which allows it to be converted to `Box<dyn std::error::Error>`.
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
-/// A specialized `Result` type for mini-redis operations.
-///
-/// This is defined as a convenience.
+/// 一个专门的Result类型，为了方便。
 pub type Result<T> = std::result::Result<T, Error>;

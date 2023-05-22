@@ -65,15 +65,10 @@ enum Command {
     },
 }
 
-/// Entry point for CLI tool.
+/// CLI工具的入口
 ///
-/// The `[tokio::main]` annotation signals that the Tokio runtime should be
-/// started when the function is called. The body of the function is executed
-/// within the newly spawned runtime.
-///
-/// `flavor = "current_thread"` is used here to avoid spawning background
-/// threads. The CLI tool use case benefits more by being lighter instead of
-/// multi-threaded.
+/// tokio::main宏表示在调用函数时应该启动Tokio运行时，函数在新生成的运行时中执行。
+/// 使用flavor="current_thread"来避免生成后台线程，与多线程相比，更加轻量级。
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> mini_redis::Result<()> {
     // Enable logging

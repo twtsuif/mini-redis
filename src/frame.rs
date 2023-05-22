@@ -1,5 +1,5 @@
-//! Provides a type representing a Redis protocol frame as well as utilities for
-//! parsing frames from a byte array.
+//! 提供了一个用于表示Redis协议帧的类型
+//! 提供了用于从字节数组中解析帧的应用程序
 
 use bytes::{Buf, Bytes};
 use std::convert::TryInto;
@@ -8,7 +8,7 @@ use std::io::Cursor;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
-/// A frame in the Redis protocol.
+/// Redis协议中的一帧
 #[derive(Clone, Debug)]
 pub enum Frame {
     Simple(String),

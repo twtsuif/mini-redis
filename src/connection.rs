@@ -5,72 +5,45 @@ use std::io::{self, Cursor};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::net::TcpStream;
 
-/// Send and receive `Frame` values from a remote peer.
-///
-/// When implementing networking protocols, a message on that protocol is
-/// often composed of several smaller messages known as frames. The purpose of
-/// `Connection` is to read and write frames on the underlying `TcpStream`.
-///
-/// To read frames, the `Connection` uses an internal buffer, which is filled
-/// up until there are enough bytes to create a full frame. Once this happens,
-/// the `Connection` creates the frame and returns it to the caller.
-///
-/// When sending frames, the frame is first encoded into the write buffer.
-/// The contents of the write buffer are then written to the socket.
+/// 从远方的对等端发送和接受帧
+/// 
+/// 当实现网络协议时，该协议上的消息通常由称为帧的几个较小的消息组成
+/// Connection的目的是读写底层TcpStream的帧，为了读取帧，Connection使用一个内部缓冲区，直到有足够的字节来创建一个完整的帧，然后创建帧返回给调用者
+/// 然后将缓冲区的内容写入socket
 #[derive(Debug)]
 pub struct Connection {
-    // The `TcpStream`. It is decorated with a `BufWriter`, which provides write
-    // level buffering. The `BufWriter` implementation provided by Tokio is
-    // sufficient for our needs.
+    // 被BufWriter修饰的TcpStream，提供写级别的缓冲，被Tokio实现的BufWriter足够我们的需要
     stream: BufWriter<TcpStream>,
 
-    // The buffer for reading frames.
+    // 读帧的缓冲区
     buffer: BytesMut,
 }
 
 impl Connection {
-    /// Create a new `Connection`, backed by `socket`. Read and write buffers
-    /// are initialized.
+    /// 创建新的Connect，由socket支持。初始化读写缓冲区。
     pub fn new(socket: TcpStream) -> Connection {
         Connection {
             stream: BufWriter::new(socket),
-            // Default to a 4KB read buffer. For the use case of mini redis,
-            // this is fine. However, real applications will want to tune this
-            // value to their specific use case. There is a high likelihood that
-            // a larger read buffer will work better.
+            // 默认4KB的读缓冲区，对我们来说够了。 更大的读缓冲区可能更好。
             buffer: BytesMut::with_capacity(4 * 1024),
         }
     }
 
-    /// Read a single `Frame` value from the underlying stream.
+    /// 从底层的流中读取单帧
     ///
-    /// The function waits until it has retrieved enough data to parse a frame.
-    /// Any data remaining in the read buffer after the frame has been parsed is
-    /// kept there for the next call to `read_frame`.
-    ///
-    /// # Returns
-    ///
-    /// On success, the received frame is returned. If the `TcpStream`
-    /// is closed in a way that doesn't break a frame in half, it returns
-    /// `None`. Otherwise, an error is returned.
+    /// 这个方法将会等待，直到接收到足够的数据来解析一帧。帧被解析之后，读缓冲区的任何数据一直被保留，直到下一次调用read_frame()。
+    /// 成功，收到的帧被返回。如果TcpStream以某种不会将帧分成两半的方式关闭，返回None。否则，返回错误
     pub async fn read_frame(&mut self) -> crate::Result<Option<Frame>> {
         loop {
-            // Attempt to parse a frame from the buffered data. If enough data
-            // has been buffered, the frame is returned.
+            // 尝试从缓冲数据中解析一个帧，如果足够的数据被缓冲，则返回帧
             if let Some(frame) = self.parse_frame()? {
                 return Ok(Some(frame));
             }
 
-            // There is not enough buffered data to read a frame. Attempt to
-            // read more data from the socket.
-            //
-            // On success, the number of bytes is returned. `0` indicates "end
-            // of stream".
+            // 没有足够的缓冲数据组成一帧，尝试从socket里读取更多数据
+            // 成功则返回字节数，0表示流结束
             if 0 == self.stream.read_buf(&mut self.buffer).await? {
-                // The remote closed the connection. For this to be a clean
-                // shutdown, there should be no data in the read buffer. If
-                // there is, this means that the peer closed the socket while
-                // sending a frame.
+                // 远端关闭连接。为了实现干净的关闭，读缓冲区中应该没有数据。如果有的化，意味着对端在发送帧时关闭了socket
                 if self.buffer.is_empty() {
                     return Ok(None);
                 } else {
@@ -80,46 +53,30 @@ impl Connection {
         }
     }
 
-    /// Tries to parse a frame from the buffer. If the buffer contains enough
-    /// data, the frame is returned and the data removed from the buffer. If not
-    /// enough data has been buffered yet, `Ok(None)` is returned. If the
-    /// buffered data does not represent a valid frame, `Err` is returned.
+    /// 尝试从缓冲区中解析帧 
+    /// 如果缓冲区有了足够的数据，返回帧然后清除缓冲区的数据
+    /// 如果没有足够的数据被缓冲，返回Ok(None)，如果缓冲数据不是一个合法的帧，返回Err
     fn parse_frame(&mut self) -> crate::Result<Option<Frame>> {
         use frame::Error::Incomplete;
 
-        // Cursor is used to track the "current" location in the
-        // buffer. Cursor also implements `Buf` from the `bytes` crate
-        // which provides a number of helpful utilities for working
-        // with bytes.
+        // Cursor用于跟踪缓冲区的当前位置，Cursor还从bytes库中实现了Buf，bytes包提供了许多用于处理字节的有用工具
         let mut buf = Cursor::new(&self.buffer[..]);
 
-        // The first step is to check if enough data has been buffered to parse
-        // a single frame. This step is usually much faster than doing a full
-        // parse of the frame, and allows us to skip allocating data structures
-        // to hold the frame data unless we know the full frame has been
-        // received.
+        // 第一步检查是否有足够的数据组成单帧，通常比帧进行完整解析要快的多，允许我们跳过分配数据结构来保存帧，除非我们已经接收了完整的帧。
         match Frame::check(&mut buf) {
             Ok(_) => {
-                // The `check` function will have advanced the cursor until the
-                // end of the frame. Since the cursor had position set to zero
-                // before `Frame::check` was called, we obtain the length of the
-                // frame by checking the cursor position.
+                // check函数将光标移动到帧的末尾。
+                // 调用check之前，游标的位置被设置为0，所以通过检查游标的位置来获取帧的长度。
                 let len = buf.position() as usize;
 
-                // Reset the position to zero before passing the cursor to
-                // `Frame::parse`.
+                // 将Cursor传递给Frame::parse之前，将位置重置为0
                 buf.set_position(0);
 
-                // Parse the frame from the buffer. This allocates the necessary
-                // structures to represent the frame and returns the frame
-                // value.
-                //
-                // If the encoded frame representation is invalid, an error is
-                // returned. This should terminate the **current** connection
-                // but should not impact any other connected client.
+                // 解析缓冲区的帧。分配必要的结构表示帧。
+                // 编码的帧无效则返回错误，终止当前的连接，但不影响任何其他的客户端连接。
                 let frame = Frame::parse(&mut buf)?;
 
-                // Discard the parsed data from the read buffer.
+                // 从读缓冲区中丢弃解析的数据
                 //
                 // When `advance` is called on the read buffer, all of the data
                 // up to `len` is discarded. The details of how this works is
@@ -127,7 +84,7 @@ impl Connection {
                 // cursor, but it may be done by reallocating and copying data.
                 self.buffer.advance(len);
 
-                // Return the parsed frame to the caller.
+                // 向调用者返回解析的帧
                 Ok(Some(frame))
             }
             // There is not enough data present in the read buffer to parse a
@@ -162,25 +119,23 @@ impl Connection {
                 // Encode the frame type prefix. For an array, it is `*`.
                 self.stream.write_u8(b'*').await?;
 
-                // Encode the length of the array.
+                // 编码数组的长度
                 self.write_decimal(val.len() as u64).await?;
 
-                // Iterate and encode each entry in the array.
+                // 迭代并编码数组中的每个entry
                 for entry in &**val {
                     self.write_value(entry).await?;
                 }
             }
-            // The frame type is a literal. Encode the value directly.
+            // 帧类型是字面量，直接对值编码
             _ => self.write_value(frame).await?,
         }
 
-        // Ensure the encoded frame is written to the socket. The calls above
-        // are to the buffered stream and writes. Calling `flush` writes the
-        // remaining contents of the buffer to the socket.
+        // 确保将编码帧写入socket，上面的调用是对缓冲流的调用和写操作。调用flush将缓冲区剩余的内容写入套接字。
         self.stream.flush().await
     }
 
-    /// Write a frame literal to the stream
+    /// 将帧内容写入流
     async fn write_value(&mut self, frame: &Frame) -> io::Result<()> {
         match frame {
             Frame::Simple(val) => {
@@ -218,11 +173,11 @@ impl Connection {
         Ok(())
     }
 
-    /// Write a decimal frame to the stream
+    /// 将一个10进制帧写入流
     async fn write_decimal(&mut self, val: u64) -> io::Result<()> {
         use std::io::Write;
 
-        // Convert the value to a string
+        // 将值转化为字符串
         let mut buf = [0u8; 20];
         let mut buf = Cursor::new(&mut buf[..]);
         write!(&mut buf, "{}", val)?;

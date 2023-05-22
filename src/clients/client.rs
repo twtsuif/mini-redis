@@ -52,10 +52,9 @@ pub struct Message {
 }
 
 impl Client {
-    /// Establish a connection with the Redis server located at `addr`.
+    /// 与服务端建立连接
     ///
-    /// `addr` may be any type that can be asynchronously converted to a
-    /// `SocketAddr`. This includes `SocketAddr` and strings. The `ToSocketAddrs`
+    /// `addr` may be any type that can be asynchronously converted to a `SocketAddr`. This includes `SocketAddr` and strings. The `ToSocketAddrs`
     /// trait is the Tokio version and not the `std` version.
     ///
     /// # Examples

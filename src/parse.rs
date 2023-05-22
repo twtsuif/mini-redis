@@ -3,29 +3,24 @@ use crate::Frame;
 use bytes::Bytes;
 use std::{fmt, str, vec};
 
-/// Utility for parsing a command
+/// 用于解析命令
 ///
-/// Commands are represented as array frames. Each entry in the frame is a
-/// "token". A `Parse` is initialized with the array frame and provides a
-/// cursor-like API. Each command struct includes a `parse_frame` method that
-/// uses a `Parse` to extract its fields.
+/// 命令表示为数组的帧，每一项都是token 'Parse'使用数组帧初始化，并提供类似指针的API。每个命令结构都包含一个' parse_frame '方法，该方法使用' Parse '来提取其字段。
 #[derive(Debug)]
 pub(crate) struct Parse {
-    /// Array frame iterator.
+    /// 数组帧迭代器
     parts: vec::IntoIter<Frame>,
 }
 
-/// Error encountered while parsing a frame.
+/// 解析帧时遇到的错误
 ///
-/// Only `EndOfStream` errors are handled at runtime. All other errors result in
-/// the connection being terminated.
+/// 只有EndOfStream错误在运行时处理，其他所有的错误都将导致连接终止
 #[derive(Debug)]
 pub(crate) enum ParseError {
-    /// Attempting to extract a value failed due to the frame being fully
-    /// consumed.
+    /// 由于帧完全被消费，尝试提取值失败
     EndOfStream,
 
-    /// All other errors
+    /// 所有其他的错误
     Other(crate::Error),
 }
 

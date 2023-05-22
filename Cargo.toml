@@ -23,11 +23,15 @@ path = "src/bin/server.rs"
 [dependencies]
 async-stream = "0.3.0"
 atoi = "0.3.2"
+# 处理字节
 bytes = "1"
 rand = "0.8.5"
+# 解析命令行参数
 clap = { version = "3.1.18", features = ["derive"] }
+# 异步编程库
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
+# 日志记录
 tracing = "0.1.34"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 # Implements the types defined in the OTel spec
